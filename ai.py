@@ -129,3 +129,81 @@ Return this exact JSON:
     return json.loads(raw)
 
 
+def fix_eligibility_gaps(tender_data: dict) -> dict:
+    """
+    For every criterion that did not match,
+    AI suggests exactly how to address it in the proposal.
+    """
+    match = tender_data.get("match_engine", {})
+    eligibility = tender_data.get("eligibility_criteria", [])
+    project_name = tender_data.get("project_name", "")
+    department = tender_data.get("department_name", "")
+
+    gaps = {k: v for k, v in match.items() if not v}
+
+    if not gaps:
+        return {"gaps": [], "message": "No gaps found — all criteria matched."}
+
+    gap_labels = {
+        "pmgdisha":  "PMGDISHA Experience",
+        "jjm":       "Jal Jeevan Mission Experience",
+        "lakhpati":  "Lakhpati Didi Experience",
+        "ndlm":      "NDLM Experience",
+        "pmay":      "PMAY-G Experience",
+        "iso":       "ISO Certifications",
+        "msme":      "MSME Status",
+        "geographic":"Geographic Reach",
+        "scale":     "Beneficiary Scale",
+    }
+
+    gaps_text = "\n".join([f"- {gap_labels.get(k, k)}" for k in gaps.keys()])
+
+    prompt = f"""You are a senior bid consultant helping an organisation win a government tender.
+
+Organisation profile:
+- Established: 2004 (20+ years experience)
+- ISO certified: 9001, 14001, 45001, 21001, 22000
+- MSME registered, DPIIT, EPF, ESIC, GST compliant
+- Pan-India presence: 14+ states, 100+ districts, 500+ blocks, 3000+ panchayats
+- Total beneficiaries trained: 4.2 lakh+
+- NSDC empanelled
+- Major projects: PMGDISHA (1.59L), JJM (1.34L), PMAY-G (26K), NDLM (41K), Lakhpati Didi (65K), Saubhagya (1.5K)
+- Specialisations: Skill development, digital literacy, rural delivery, corporate training, AI training
+
+Tender: {project_name}
+Department: {department}
+Tender eligibility criteria: {', '.join(eligibility)}
+
+The following criteria were NOT directly matched in our profile:
+{gaps_text}
+
+For EACH gap, provide a specific strategy to address it in the proposal.
+Return ONLY valid JSON. No markdown, no explanation.
+
+{{
+  "gaps": [
+    {{
+      "criterion": "exact criterion name",
+      "gap_label": "label from our list",
+      "what_to_write": "Exact paragraph or sentences to write in the proposal to address this gap",
+      "documents_to_reference": ["document 1", "document 2"],
+      "framing_strategy": "One sentence on how to frame this gap positively",
+      "risk_level": "low or medium or high"
+    }}
+  ]
+}}"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+
+    return json.loads(raw)

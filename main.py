@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 from ai import analyse_tender
 from docx_generator import generate_top_docx, generate_report_docx
+from ai import analyse_tender, fix_eligibility_gaps
 
 app = FastAPI(title="MeraPath Tender Analyser")
 
@@ -64,7 +65,16 @@ async def download_report(data: dict):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": "attachment; filename=Report.docx"}
     )
-
+@app.post("/gaps")
+async def get_gaps(data: dict):
+    try:
+        result = fix_eligibility_gaps(data)
+        return result
+    except Exception as e:
+        error_msg = str(e)
+        if "credit balance" in error_msg.lower():
+            return {"error": "api_credits", "message": "API credits needed"}
+        return {"error": "general", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

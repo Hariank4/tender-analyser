@@ -5,6 +5,53 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MeraPath — Tender Analyser</title>
 <style>
+    .gap-btn {
+  margin-left:auto; font-size:10px; font-weight:700; color:var(--orange);
+  cursor:pointer; padding:2px 6px; border:1px solid var(--orange);
+  border-radius:4px; transition:all 0.15s; flex-shrink:0;
+}
+.gap-btn:hover { background:var(--orange); color:#fff; }
+
+/* GAP MODAL */
+.modal-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5);
+  z-index:1000; align-items:center; justify-content:center;
+}
+.modal-overlay.open { display:flex; }
+.modal-box {
+  background:#fff; border-radius:16px; padding:28px;
+  max-width:600px; width:90%; max-height:80vh; overflow-y:auto;
+  position:relative;
+}
+.modal-close {
+  position:absolute; top:16px; right:16px; font-size:20px;
+  cursor:pointer; color:var(--text3); background:none; border:none;
+}
+.modal-title { font-size:16px; font-weight:700; color:var(--navy); margin-bottom:4px; }
+.modal-sub { font-size:12px; color:var(--text3); margin-bottom:20px; }
+.gap-section { margin-bottom:16px; }
+.gap-section-label {
+  font-size:9.5px; font-weight:700; color:var(--text3);
+  text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;
+}
+.gap-section-body {
+  font-size:13px; color:var(--text1); line-height:1.7;
+  background:var(--surface); padding:10px 12px; border-radius:8px;
+  border-left:3px solid var(--teal);
+}
+.risk-badge {
+  display:inline-block; padding:2px 8px; border-radius:4px;
+  font-size:10px; font-weight:700;
+}
+.risk-low { background:#E8F5E9; color:var(--green); }
+.risk-medium { background:#FFF3E0; color:var(--orange); }
+.risk-high { background:#FFEBEE; color:var(--red); }
+.doc-chip {
+  display:inline-block; background:var(--surface); border:1px solid var(--border);
+  border-radius:4px; padding:3px 8px; font-size:11px; color:var(--text2);
+  margin:2px 4px 2px 0;
+}
+.gap-loading { text-align:center; padding:40px; color:var(--text3); font-size:14px; }
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   :root {
     --navy:#0D1B40; --blue:#1565C0; --teal:#0097A7; --gold:#F9A825;
@@ -352,11 +399,11 @@ function populateResults(d) {
   document.getElementById('s-epbg').textContent   = d.epbg || '—';
 
   // Match Engine
-  const match = d.match_engine || {};
   document.getElementById('matchEngine').innerHTML = Object.entries(MATCH_LABELS).map(([k,label]) => `
     <div class="match-item">
       <span class="match-icon">${match[k] ? '✅' : '❌'}</span>
       <span class="match-label">${label}</span>
+      ${!match[k] ? `<span class="gap-btn" onclick="showGapFix('${k}','${label}')">Fix →</span>` : ''}
     </div>`).join('');
 
   // Score
@@ -525,6 +572,78 @@ function showErrorScreen(icon, title, message) {
         </button>
       </div>
     </div>`;
+}
+<!-- GAP FIX MODAL -->
+<div class="modal-overlay" id="gapModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeGapModal()">✕</button>
+    <div class="modal-title" id="gapModalTitle">Eligibility Gap Strategy</div>
+    <div class="modal-sub" id="gapModalSub">AI-generated fix for this gap</div>
+    <div id="gapModalContent">
+      <div class="gap-loading">🤖 Generating strategy...</div>
+    </div>
+  </div>
+</div>
+async function showGapFix(key, label) {
+  document.getElementById('gapModal').classList.add('open');
+  document.getElementById('gapModalTitle').textContent = label + ' — Gap Strategy';
+  document.getElementById('gapModalSub').textContent = 'How to address this in your proposal';
+  document.getElementById('gapModalContent').innerHTML = '<div class="gap-loading">🤖 Generating strategy...</div>';
+
+  try {
+    const res = await fetch(`${API}/gaps`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(currentData)
+    });
+    const result = await res.json();
+
+    if (result.error) {
+      document.getElementById('gapModalContent').innerHTML = `
+        <div class="gap-loading">❌ ${result.message}</div>`;
+      return;
+    }
+
+    // Find the specific gap for this key
+    const gap = result.gaps?.find(g => g.gap_label?.toLowerCase().includes(label.toLowerCase()))
+               || result.gaps?.[0];
+
+    if (!gap) {
+      document.getElementById('gapModalContent').innerHTML =
+        '<div class="gap-loading">No strategy found for this gap.</div>';
+      return;
+    }
+
+    const riskClass = `risk-${gap.risk_level || 'medium'}`;
+    const docs = (gap.documents_to_reference || []).map(d =>
+      `<span class="doc-chip">📎 ${d}</span>`).join('');
+
+    document.getElementById('gapModalContent').innerHTML = `
+      <div class="gap-section">
+        <div class="gap-section-label">Risk Level</div>
+        <span class="risk-badge ${riskClass}">${(gap.risk_level||'medium').toUpperCase()}</span>
+      </div>
+      <div class="gap-section">
+        <div class="gap-section-label">Framing Strategy</div>
+        <div class="gap-section-body">${gap.framing_strategy || '—'}</div>
+      </div>
+      <div class="gap-section">
+        <div class="gap-section-label">What to Write in the Proposal</div>
+        <div class="gap-section-body">${gap.what_to_write || '—'}</div>
+      </div>
+      <div class="gap-section">
+        <div class="gap-section-label">Documents to Reference</div>
+        <div>${docs || '<span style="font-size:12px;color:var(--text3)">No specific documents</span>'}</div>
+      </div>`;
+
+  } catch(e) {
+    document.getElementById('gapModalContent').innerHTML =
+      '<div class="gap-loading">❌ Could not connect to server.</div>';
+  }
+}
+
+function closeGapModal() {
+  document.getElementById('gapModal').classList.remove('open');
 }
 </script>
 </body>
