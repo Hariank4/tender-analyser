@@ -368,8 +368,38 @@ def generate_report_docx(data: dict) -> bytes:
 
 
 if __name__ == "__main__":
-    from ai import get_dummy_data
-    data = get_dummy_data()
+    # Test data for checking DOCX format
+    data = {
+        "bid_number": "TEST/001",
+        "ra_option": "No",
+        "start_date": "1 June 2025",
+        "end_date": "25 June 2025, 5:00 PM",
+        "department_name": "Test Department, New Delhi — 110001",
+        "estimated_cost": "₹2.5 Crore",
+        "epbg": "₹5 Lakh",
+        "processing_fee": "₹1,000",
+        "tender_fee": "₹2,000",
+        "appraisal_fee": "Not mentioned",
+        "project_name": "Test Project for DOCX Format Check",
+        "scope_of_work": ["Point 1 of scope", "Point 2 of scope", "Point 3 of scope"],
+        "eligibility_criteria": ["Criterion 1", "Criterion 2", "Criterion 3"],
+        "documents_required": ["Document 1", "Document 2"],
+        "remarks_risk": ["Risk point 1", "Risk point 2"],
+        "jist": "This is a test tender to verify the DOCX format is correct.",
+        "state": "Delhi",
+        "region": "Central Delhi",
+        "category": "skill_development",
+        "portal": "GeM",
+        "match_engine": {
+            "pmgdisha": True, "jjm": False, "lakhpati": True,
+            "ndlm": True, "pmay": False, "iso": True,
+            "msme": True, "geographic": True, "scale": True
+        },
+        "bid_strength_score": 82,
+        "win_probability": 74,
+        "score_reasoning": "Strong match on most criteria.",
+        "proposal_sections": ["Section 1: Executive Summary", "Section 2: Methodology"]
+    }
 
     top_bytes    = generate_top_docx(data)
     report_bytes = generate_report_docx(data)
@@ -378,6 +408,9 @@ if __name__ == "__main__":
         f.write(top_bytes)
     with open("test_Report.docx", "wb") as f:
         f.write(report_bytes)
+
+    print("✅ TOP.docx generated")
+    print("✅ Report.docx generated")
 
     print("✅ TOP.docx generated")
     print("✅ Report.docx generated")

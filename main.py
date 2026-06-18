@@ -3,7 +3,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import json
-from ai import analyse_tender
 from docx_generator import generate_top_docx, generate_report_docx
 from ai import analyse_tender, fix_eligibility_gaps
 

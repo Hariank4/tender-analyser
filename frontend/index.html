@@ -399,6 +399,7 @@ function populateResults(d) {
   document.getElementById('s-epbg').textContent   = d.epbg || '—';
 
   // Match Engine
+    const match = d.match_engine || {};
   document.getElementById('matchEngine').innerHTML = Object.entries(MATCH_LABELS).map(([k,label]) => `
     <div class="match-item">
       <span class="match-icon">${match[k] ? '✅' : '❌'}</span>
@@ -573,17 +574,7 @@ function showErrorScreen(icon, title, message) {
       </div>
     </div>`;
 }
-<!-- GAP FIX MODAL -->
-<div class="modal-overlay" id="gapModal">
-  <div class="modal-box">
-    <button class="modal-close" onclick="closeGapModal()">✕</button>
-    <div class="modal-title" id="gapModalTitle">Eligibility Gap Strategy</div>
-    <div class="modal-sub" id="gapModalSub">AI-generated fix for this gap</div>
-    <div id="gapModalContent">
-      <div class="gap-loading">🤖 Generating strategy...</div>
-    </div>
-  </div>
-</div>
+
 async function showGapFix(key, label) {
   document.getElementById('gapModal').classList.add('open');
   document.getElementById('gapModalTitle').textContent = label + ' — Gap Strategy';
@@ -646,5 +637,16 @@ function closeGapModal() {
   document.getElementById('gapModal').classList.remove('open');
 }
 </script>
+<!-- GAP FIX MODAL -->
+<div class="modal-overlay" id="gapModal">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeGapModal()">✕</button>
+    <div class="modal-title" id="gapModalTitle">Eligibility Gap Strategy</div>
+    <div class="modal-sub" id="gapModalSub">AI-generated fix for this gap</div>
+    <div id="gapModalContent">
+      <div class="gap-loading">🤖 Generating strategy...</div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
