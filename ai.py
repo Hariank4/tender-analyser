@@ -1,12 +1,12 @@
-import anthropic
 import os
 import json
 import fitz
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
 MERAPATH_PROFILE = {
     "company": "MeraPath Education Limited",
@@ -46,6 +46,8 @@ MATCH_CRITERIA = [
     {"key": "scale", "label": "Beneficiary Scale", "detail": "4.2 lakh+ trained"},
 ]
 
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -53,6 +55,20 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     for page in doc:
         text += page.get_text()
     return text
+
+
+def _call_groq(prompt: str) -> str:
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
+        max_tokens=2500,
+        temperature=0.2,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": "You are a precise document analysis assistant. Always respond with valid JSON only — no markdown, no explanation, no code fences. Never omit any field requested in the schema, even if the answer requires inference."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content.strip()
 
 
 def analyse_tender(pdf_bytes: bytes) -> dict:
@@ -74,7 +90,7 @@ Analyse this tender document and return ONLY valid JSON. No markdown, no explana
 TENDER TEXT:
 {raw_text[:8000]}
 
-Return this exact JSON:
+Return this exact JSON structure:
 {{
   "bid_number": "tender/bid reference number or empty string",
   "ra_option": "Yes or No — whether reverse auction is mentioned",
@@ -107,32 +123,20 @@ Return this exact JSON:
     "geographic": true,
     "scale": true
   }},
-  "bid_strength_score": number between 0 and 100,
-  "win_probability": number between 0 and 100,
+  "bid_strength_score": "number between 0 and 100",
+  "win_probability": "number between 0 and 100",
   "score_reasoning": "2-3 sentences explaining the score",
   "proposal_sections": ["Section 1: title", "Section 2: title", "Section 3: title", "Section 4: title", "Section 5: title"]
 }}"""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    raw = response.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-
+    raw = _call_groq(prompt)
     return json.loads(raw)
 
 
 def fix_eligibility_gaps(tender_data: dict) -> dict:
     """
     For every criterion that did not match,
-    AI suggests exactly how to address it in the proposal.
+    AI explains why the gap exists and suggests exactly how to address it.
     """
     match = tender_data.get("match_engine", {})
     eligibility = tender_data.get("eligibility_criteria", [])
@@ -156,7 +160,7 @@ def fix_eligibility_gaps(tender_data: dict) -> dict:
         "scale":     "Beneficiary Scale",
     }
 
-    gaps_text = "\n".join([f"- {gap_labels.get(k, k)}" for k in gaps.keys()])
+    gaps_text = "\n".join([f"- {k}: {gap_labels.get(k, k)}" for k in gaps.keys()])
 
     prompt = f"""You are a senior bid consultant helping an organisation win a government tender.
 
@@ -177,33 +181,43 @@ Tender eligibility criteria: {', '.join(eligibility)}
 The following criteria were NOT directly matched in our profile:
 {gaps_text}
 
-For EACH gap, provide a specific strategy to address it in the proposal.
-Return ONLY valid JSON. No markdown, no explanation.
+CRITICAL INSTRUCTION: For EACH gap, you MUST include all seven fields below. Do not skip "why_gap_exists" under any circumstances — it is the most important field. If you are unsure, write at least one honest sentence about why the organisation's profile does not directly cover this criterion.
+
+For EACH gap, return an object with EXACTLY these seven fields, in this order:
+1. criterion — REQUIRED. The key name of the gap (e.g. "jjm", "pmgdisha", "lakhpati", etc. as provided in the list).
+2. gap_label — REQUIRED. The description of the gap (e.g. "Jal Jeevan Mission Experience").
+3. why_gap_exists — REQUIRED. One or two sentences explaining specifically why the organisation does not directly meet this criterion. Never leave this blank or omit it.
+4. what_to_write
+5. documents_to_reference
+6. framing_strategy
+7. risk_level
+
+Return ONLY valid JSON in this exact structure, no markdown, no explanation:
 
 {{
   "gaps": [
     {{
-      "criterion": "exact criterion name",
-      "gap_label": "label from our list",
-      "what_to_write": "Exact paragraph or sentences to write in the proposal to address this gap",
-      "documents_to_reference": ["document 1", "document 2"],
-      "framing_strategy": "One sentence on how to frame this gap positively",
+      "criterion": "string",
+      "gap_label": "string",
+      "why_gap_exists": "string — never empty",
+      "what_to_write": "string",
+      "documents_to_reference": ["string"],
+      "framing_strategy": "string",
       "risk_level": "low or medium or high"
     }}
   ]
 }}"""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    raw = _call_groq(prompt)
+    result = json.loads(raw)
 
-    raw = response.content[0].text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
+    # Safety net — guarantee why_gap_exists is never blank in the UI,
+    # even if the model omits it
+    for gap in result.get("gaps", []):
+        if not gap.get("why_gap_exists"):
+            gap["why_gap_exists"] = (
+                f"Our organisation's documented project portfolio does not include "
+                f"direct experience matching '{gap.get('gap_label', 'this criterion')}'."
+            )
 
-    return json.loads(raw)
+    return result
