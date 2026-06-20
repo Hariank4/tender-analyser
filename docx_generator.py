@@ -148,6 +148,10 @@ def generate_top_docx(data: dict) -> bytes:
     # Row 10 — Scope of Work
     r10c0 = table.cell(10, 0).merge(table.cell(10, 5))
     scope_items = data.get("scope_of_work", [])
+    scope_text = "Scope of Work:\n" + "\n".join(f"{i+1}. {s}" for i, s in enumerate(scope_items))
+    cell_text(r10c0, scope_text, bold=False)
+    r10c0.paragraphs[0].runs[0].bold = False
+    # Make label bold
     r10c0.paragraphs[0].clear()
     p = r10c0.paragraphs[0]
     label_run = p.add_run("Scope of Work:\n")
@@ -229,8 +233,7 @@ def generate_report_docx(data: dict) -> bytes:
 
     def body(text):
         p = doc.add_paragraph(text)
-        if p.runs:
-            p.runs[0].font.size = Pt(11)
+        p.runs[0].font.size = Pt(11) if p.runs else None
         p.paragraph_format.space_after = Pt(4)
         return p
 
@@ -277,8 +280,7 @@ def generate_report_docx(data: dict) -> bytes:
     for i, (k, v) in enumerate(rows_data):
         kv_table.cell(i, 0).text = k
         kv_table.cell(i, 1).text = str(v)
-        if kv_table.cell(i, 0).paragraphs[0].runs:
-            kv_table.cell(i, 0).paragraphs[0].runs[0].bold = True
+        kv_table.cell(i, 0).paragraphs[0].runs[0].bold = True
 
     doc.add_paragraph()
 
@@ -324,8 +326,7 @@ def generate_report_docx(data: dict) -> bytes:
     }
     for j, h in enumerate(headers):
         match_table.cell(0, j).text = h
-        if match_table.cell(0, j).paragraphs[0].runs:
-            match_table.cell(0, j).paragraphs[0].runs[0].bold = True
+        match_table.cell(0, j).paragraphs[0].runs[0].bold = True
     for i, (key, label) in enumerate(criteria_labels.items(), 1):
         status = "✅ Match" if match.get(key) else "❌ Not applicable"
         match_table.cell(i, 0).text = label
@@ -346,10 +347,8 @@ def generate_report_docx(data: dict) -> bytes:
     score_table.cell(1, 0).text = "Win Probability"
     score_table.cell(1, 1).text = f"{prob}%"
     for row in score_table.rows:
-        if row.cells[0].paragraphs[0].runs:
-            row.cells[0].paragraphs[0].runs[0].bold = True
-        if row.cells[1].paragraphs[0].runs:
-            row.cells[1].paragraphs[0].runs[0].bold = True
+        row.cells[0].paragraphs[0].runs[0].bold = True
+        row.cells[1].paragraphs[0].runs[0].bold = True
 
     doc.add_paragraph()
     body(data.get("score_reasoning", ""))
@@ -412,3 +411,7 @@ if __name__ == "__main__":
 
     print("✅ TOP.docx generated")
     print("✅ Report.docx generated")
+
+    print("✅ TOP.docx generated")
+    print("✅ Report.docx generated")
+    print("Open test_TOP.docx and test_Report.docx to check the format")
